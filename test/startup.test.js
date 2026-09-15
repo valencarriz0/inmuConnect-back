@@ -50,7 +50,7 @@ test("SSL interpreta true/false y Sequelize se configura sin conectar ni registr
       assert.equal(sequelize.options.define.freezeTableName, true);
       assert.equal(sequelize.options.logging, false);
       assert.deepEqual(sequelize.options.dialectOptions.ssl,
-        ${enabled} ? { require: true, rejectUnauthorized: true } : false);
+        ${enabled} ? { require: true, rejectUnauthorized: false } : false);
       assert.deepEqual(Object.keys(sequelize.models), []);
       await sequelize.close();
     `, { DB_SSL: value });

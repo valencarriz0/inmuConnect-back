@@ -7,6 +7,12 @@ const fieldMessages = {
   phone: "Ingresá un teléfono con entre 7 y 15 dígitos.",
   password: "La contraseña debe tener entre 6 y 72 caracteres y no superar 72 bytes UTF-8.",
   passwordConfirm: "La confirmación debe coincidir con la contraseña.",
+  publisherType: "Seleccioná un tipo de publicador válido.",
+  taxId: "Ingresá un CUIT/CUIL válido de 11 dígitos.",
+  agencyName: "Ingresá el nombre de la inmobiliaria.",
+  rejectionReason: "Ingresá un motivo de rechazo válido.",
+  status: "Seleccioná un estado de solicitud válido.",
+  id: "Ingresá un identificador válido.",
 };
 
 export function validateData(schema, data) {
@@ -27,10 +33,10 @@ export function validateData(schema, data) {
   return value;
 }
 
-export default function validate(schema) {
+export default function validate(schema, source = "body") {
   return (req, res, next) => {
     try {
-      req.body = validateData(schema, req.body);
+      req[source] = validateData(schema, req[source]);
       next();
     } catch (error) {
       next(error);

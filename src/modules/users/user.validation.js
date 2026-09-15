@@ -2,7 +2,7 @@ import Joi from "joi";
 import { normalizeEmail } from "../../utils/email.js";
 
 const name = Joi.string().trim().min(2).pattern(/^(?=.*\p{L})[\p{L}\p{M} '\u2019-]+$/u);
-const phone = Joi.string().trim().allow(null, "").custom((value, helpers) => {
+export const phoneSchema = Joi.string().trim().allow(null, "").custom((value, helpers) => {
   if (!value) return null;
   const digits = value.replace(/\D/g, "").length;
   if (!/^[+\d ()-]+$/.test(value) || digits < 7 || digits > 15) {
@@ -19,12 +19,12 @@ export const createUserSchema = Joi.object({
   firstName: name.required(),
   lastName: name.required(),
   email: emailSchema.required(),
-  phone: phone.default(null),
+  phone: phoneSchema.default(null),
   password: passwordSchema.required(),
 }).unknown(false).required();
 
 export const updateMeSchema = Joi.object({
   firstName: name,
   lastName: name,
-  phone,
+  phone: phoneSchema,
 }).min(1).unknown(false).required();

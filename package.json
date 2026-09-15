@@ -1,12 +1,12 @@
 {
   "name": "inmuconnect-back",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/app.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "test": "node --test",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
   "keywords": [
     "nodejs",
@@ -20,7 +20,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -29,7 +28,9 @@
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.2",
     "nodemon": "^3.1.10",
-    "pg": "^8.16.3",
-    "sequelize": "^6.37.7"
+    "pg": "^8.23.0",
+    "pg-hstore": "^2.3.4",
+    "postgres": "^3.4.9",
+    "sequelize": "^6.37.8"
   }
 }

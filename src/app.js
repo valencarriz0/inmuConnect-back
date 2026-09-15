@@ -1,20 +1,19 @@
 import express from "express";
 import cors from "cors";
 
-import publicacionRoutes from "./routes/publicacionRoutes.js";
-import usuarioRoutes from "./routes/UsuarioRoutes.js";
+import env from "./config/env.js";
+import apiRouter from "./routes/index.js";
+import notFound from "./middlewares/notFound.js";
+import errorHandler from "./middlewares/errorHandler.js";
+import { generalLimiter } from "./middlewares/rateLimit.js";
 
 const app = express();
-app.use(cors());
+app.disable("x-powered-by");
+app.use(cors({ origin: env.CORS_ORIGIN }));
+app.use("/api", generalLimiter);
 app.use(express.json());
-
-// Rutas
-
-app.use("/api/publicaciones", publicacionRoutes);
-app.use("/api/usuarios", usuarioRoutes);
-
-app.listen(3000, () => {
-  console.log("🚀 Servidor corriendo en http://localhost:3000");
-});
+app.use("/api", apiRouter);
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

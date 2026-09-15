@@ -6,7 +6,8 @@ import { test } from "node:test";
 const cwd = fileURLToPath(new URL("../", import.meta.url));
 
 function run(script, overrides = {}) {
-  return spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+  const isolatedScript = 'import dotenv from "dotenv"; dotenv.config = () => ({ parsed: {} });\n' + script;
+  return spawnSync(process.execPath, ["--input-type=module", "-e", isolatedScript], {
     cwd,
     encoding: "utf8",
     timeout: 10000,
@@ -17,6 +18,8 @@ function run(script, overrides = {}) {
       DB_CONNECTION_STRING: "postgresql://test:test@localhost:5432/test",
       DB_SSL: "false",
       CORS_ORIGIN: "http://localhost:5173",
+      JWT_SECRET: "test-only-fake-secret-never-use-in-production",
+      JWT_EXPIRES_IN: "8h",
       ...overrides,
     },
   });
@@ -29,6 +32,11 @@ test("configuración inválida falla con mensajes claros y sin valores sensibles
     [{ PORT: "3000abc" }, "PORT debe ser"],
     [{ PORT: "65536" }, "PORT debe ser"],
     [{ DB_SSL: "DO_NOT_EXPOSE" }, "DB_SSL debe ser"],
+    [{ JWT_SECRET: "" }, "JWT_SECRET es obligatorio"],
+    [{ JWT_SECRET: "DO_NOT_EXPOSE" }, "JWT_SECRET es obligatorio"],
+    [{ JWT_EXPIRES_IN: "DO_NOT_EXPOSE" }, "JWT_EXPIRES_IN debe ser"],
+    [{ JWT_EXPIRES_IN: "0h" }, "JWT_EXPIRES_IN debe ser"],
+    [{ JWT_EXPIRES_IN: "3600" }, "JWT_EXPIRES_IN debe ser"],
   ]) {
     const result = run('await import("./src/config/env.js")', overrides);
     assert.equal(result.status, 1);

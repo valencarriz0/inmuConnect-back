@@ -1,3 +1,4 @@
+import "../test-support/environment.js";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";

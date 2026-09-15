@@ -27,12 +27,24 @@ if (!["true", "false"].includes(sslValue)) {
   throw new Error("DB_SSL debe ser true o false.");
 }
 
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret || jwtSecret.trim().length < 32) {
+  throw new Error("JWT_SECRET es obligatorio y debe tener al menos 32 caracteres.");
+}
+
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN?.trim() ?? "8h";
+if (!/^[1-9]\d*(s|m|h|d)$/.test(jwtExpiresIn) || !Number.isSafeInteger(Number(jwtExpiresIn.slice(0, -1)))) {
+  throw new Error("JWT_EXPIRES_IN debe ser una duración positiva con unidad s, m, h o d (por ejemplo, 8h).");
+}
+
 const env = Object.freeze({
   NODE_ENV: process.env.NODE_ENV?.trim() || "development",
   PORT: port,
   DB_CONNECTION_STRING: connectionString,
   DB_SSL: sslValue === "true",
   CORS_ORIGIN: process.env.CORS_ORIGIN?.trim() || "http://localhost:5173",
+  JWT_SECRET: jwtSecret,
+  JWT_EXPIRES_IN: jwtExpiresIn,
 });
 
 export default env;

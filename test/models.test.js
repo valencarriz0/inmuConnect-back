@@ -1,3 +1,4 @@
+import "../test-support/environment.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import net from "node:net";

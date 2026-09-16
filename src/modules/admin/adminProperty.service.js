@@ -43,6 +43,7 @@ export async function listAdminProperties(filters) {
       : filters.status,
   };
   if (filters.publisherId) where.publisherId = filters.publisherId;
+  if (filters.operationType) where.operationType = filters.operationType;
   if (filters.q) {
     where[Op.or] = [
       { title: { [Op.iLike]: `%${filters.q}%` } },

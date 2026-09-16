@@ -12,3 +12,6 @@ process.env.JWT_EXPIRES_IN = "8h";
 process.env.NOMINATIM_BASE_URL = "https://nominatim.test";
 process.env.NOMINATIM_USER_AGENT = "InmuConnect-tests/1.0";
 process.env.NOMINATIM_TIMEOUT_MS = "5000";
+process.env.SUPABASE_URL = "https://project.test";
+process.env.SUPABASE_SECRET_KEY = "test-placeholder-secret";
+process.env.SUPABASE_STORAGE_BUCKET = "property-images";

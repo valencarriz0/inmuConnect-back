@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { Op } from "sequelize";
 import app from "../src/app.js";
 import sequelize from "../src/config/database.js";
+import storageClient from "../src/integrations/supabase/storageClient.js";
 import { validateData } from "../src/middlewares/validate.js";
 import {
   Amenity,
@@ -45,6 +46,18 @@ const cityId = "dcaa991f-2f83-4273-a4ea-61f0361c52fb";
 const provinceId = "8f891fa6-c31a-4082-b32f-e2d306d19a9d";
 const serviceId = "a4945137-132a-49c7-8237-a795119f9be7";
 const amenityId = "04338a2c-c669-4514-875e-d492619c4fc6";
+const imageIds = [
+  "11111111-1111-4111-8111-111111111111",
+  "22222222-2222-4222-8222-222222222222",
+  "33333333-3333-4333-8333-333333333333",
+  "44444444-4444-4444-8444-444444444444",
+  "55555555-5555-4555-8555-555555555555",
+  "66666666-6666-4666-8666-666666666666",
+];
+
+function ownedImageUrl(id, extension = "jpg", ownerId = publisherId) {
+  return `https://project.test/storage/v1/object/public/property-images/properties/${ownerId}/${id}.${extension}`;
+}
 
 const validInput = {
   title: "  Casa con patio  ",
@@ -71,7 +84,7 @@ const validInput = {
   longitude: -62.732456,
   serviceCodes: ["electricity"],
   amenityCodes: ["balcony"],
-  images: ["https://example.com/front.webp", "https://example.com/patio.jpg"],
+  images: [ownedImageUrl(imageIds[0], "webp"), ownedImageUrl(imageIds[1])],
 };
 
 function cityRecord() {
@@ -151,8 +164,8 @@ function managedTransaction(t) {
 
 function mockCurrentRelations(t, {
   images = [
-    { url: "https://example.com/front.webp", position: 0 },
-    { url: "https://example.com/patio.jpg", position: 1 },
+    { url: ownedImageUrl(imageIds[0], "webp"), position: 0 },
+    { url: ownedImageUrl(imageIds[1]), position: 1 },
   ],
   services = [serviceRecord()],
   amenities = [amenityRecord()],
@@ -208,6 +221,19 @@ test("create normaliza textos, aplica defaults y rechaza campos controlados por 
   }
 });
 
+test("create acepta URLs propias y rechaza URLs ajenas o externas antes de la transacción", async (t) => {
+  assert.doesNotThrow(() => validatedCreate());
+  const transaction = t.mock.method(sequelize, "transaction", () => assert.fail("No debe iniciar transacción"));
+
+  await assert.rejects(createPublisherProperty(publisherId, validatedCreate({
+    images: [ownedImageUrl(imageIds[0], "jpg", interestedId), ownedImageUrl(imageIds[1])],
+  })), { statusCode: 400 });
+  await assert.rejects(createPublisherProperty(publisherId, validatedCreate({
+    images: ["https://example.com/externa.jpg", ownedImageUrl(imageIds[1])],
+  })), { statusCode: 400 });
+  assert.equal(transaction.mock.callCount(), 0);
+});
+
 test("create rechaza land, ciudad inválida, precio y rooms inválidos", () => {
   for (const overrides of [
     { propertyType: "land" },
@@ -241,8 +267,8 @@ test("coordenadas deben ser un par finito dentro de rango", () => {
 
 test("imágenes requieren entre 2 y 5 URLs HTTP persistentes", () => {
   for (const images of [
-    ["https://example.com/one.jpg"],
-    Array.from({ length: 6 }, (_, index) => `https://example.com/${index}.jpg`),
+    [ownedImageUrl(imageIds[0])],
+    imageIds.map((id) => ownedImageUrl(id)),
     ["blob:https://example.com/id", "https://example.com/two.jpg"],
     ["data:image/png;base64,abc", "https://example.com/two.jpg"],
     ["file:///tmp/a.jpg", "https://example.com/two.jpg"],
@@ -397,7 +423,7 @@ test("PATCH rechaza campos server-owned y colecciones inválidas antes de transa
     { publisherId },
     { publicationStatus: "paused" },
     { id: propertyId },
-    { images: ["https://example.com/only.jpg"] },
+    { images: [ownedImageUrl(imageIds[0])] },
     { serviceCodes: ["gas", "gas"] },
     { latitude: -35 },
     {},
@@ -449,7 +475,7 @@ test("PATCH de dirección conserva el nuevo par confirmado", async (t) => {
 });
 
 test("PATCH reemplaza imágenes, services y amenities sólo después de validar", async (t) => {
-  managedTransaction(t);
+  const { state } = managedTransaction(t);
   const property = propertyRecord();
   t.mock.method(Property, "findOne", async () => property);
   mockCurrentRelations(t);
@@ -462,18 +488,51 @@ test("PATCH reemplaza imágenes, services y amenities sólo después de validar"
   const amenityDestroy = t.mock.method(PropertyAmenity, "destroy", async () => 1);
   const amenityCreate = t.mock.method(PropertyAmenity, "bulkCreate", async () => []);
   t.mock.method(PropertyChangeHistory, "create", async () => ({}));
-  const images = ["https://example.com/new-1.jpg", "https://example.com/new-2.jpg"];
+  const images = [ownedImageUrl(imageIds[2]), ownedImageUrl(imageIds[3])];
+  const storage = { remove: t.mock.fn(async () => {
+    assert.equal(state.commits, 1);
+  }) };
   await updatePublisherProperty(propertyId, publisherId, {
     images,
     serviceCodes: [],
     amenityCodes: [],
-  });
+  }, { storage });
   assert.equal(imageDestroy.mock.callCount(), 1);
   assert.deepEqual(newImages.map(({ position }) => position), [0, 1]);
   assert.equal(serviceDestroy.mock.callCount(), 1);
   assert.equal(serviceCreate.mock.callCount(), 0);
   assert.equal(amenityDestroy.mock.callCount(), 1);
   assert.equal(amenityCreate.mock.callCount(), 0);
+  assert.deepEqual(storage.remove.mock.calls[0].arguments[0], [
+    `properties/${publisherId}/${imageIds[0]}.webp`,
+    `properties/${publisherId}/${imageIds[1]}.jpg`,
+  ]);
+});
+
+test("PATCH aplica ownership y una falla de limpieza posterior no revierte PostgreSQL", async (t) => {
+  const transaction = t.mock.method(sequelize, "transaction", () => assert.fail("No debe iniciar transacción"));
+  await assert.rejects(updatePublisherProperty(propertyId, publisherId, {
+    images: [ownedImageUrl(imageIds[2]), ownedImageUrl(imageIds[3], "jpg", interestedId)],
+  }), { statusCode: 400 });
+  assert.equal(transaction.mock.callCount(), 0);
+
+  t.mock.restoreAll();
+  const { state } = managedTransaction(t);
+  t.mock.method(Property, "findOne", async () => propertyRecord());
+  mockCurrentRelations(t);
+  t.mock.method(City, "findByPk", async () => cityRecord());
+  t.mock.method(PropertyImage, "destroy", async () => 2);
+  t.mock.method(PropertyImage, "bulkCreate", async () => []);
+  t.mock.method(PropertyChangeHistory, "create", async () => ({}));
+  const storage = { remove: t.mock.fn(async () => { throw new Error("DO_NOT_EXPOSE"); }) };
+  const logger = { error: t.mock.fn(() => {}) };
+  const result = await updatePublisherProperty(propertyId, publisherId, {
+    images: [ownedImageUrl(imageIds[2]), ownedImageUrl(imageIds[3])],
+  }, { storage, logger });
+  assert.equal(state.commits, 1);
+  assert.deepEqual(result.images, [ownedImageUrl(imageIds[2]), ownedImageUrl(imageIds[3])]);
+  assert.equal(logger.error.mock.callCount(), 1);
+  assert.equal(logger.error.mock.calls[0].arguments[0].includes("DO_NOT_EXPOSE"), false);
 });
 
 test("PATCH sin cambio efectivo no actualiza ni crea historial", async (t) => {
@@ -562,11 +621,13 @@ test("DELETE realiza soft delete, conserva relaciones y registra historial", asy
   t.mock.method(PropertyChangeHistory, "create", async (values) => { history = values; });
   const propertyDestroy = t.mock.method(Property, "destroy", () => assert.fail("No debe borrar Property"));
   const imageDestroy = t.mock.method(PropertyImage, "destroy", () => assert.fail("No debe borrar imágenes"));
+  const storageRemove = t.mock.method(storageClient, "remove", () => assert.fail("No debe borrar Storage"));
   const result = await deletePublisherProperty(propertyId, publisherId);
   assert.equal(result.publicationStatus, "deleted");
   assert.equal(history.action, "deleted");
   assert.equal(propertyDestroy.mock.callCount(), 0);
   assert.equal(imageDestroy.mock.callCount(), 0);
+  assert.equal(storageRemove.mock.callCount(), 0);
 });
 
 test("DELETE repetido es idempotente y no duplica historial", async (t) => {

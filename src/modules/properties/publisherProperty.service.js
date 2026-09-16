@@ -16,6 +16,11 @@ import {
   serializePropertyHistory,
   serializePublisherProperty,
 } from "../../serializers/publisherPropertySerializer.js";
+import storageClient from "../../integrations/supabase/storageClient.js";
+import {
+  assertOwnedPropertyImageUrls,
+  storagePathFromOwnedPublicUrl,
+} from "../../utils/propertyImageOwnership.js";
 
 const propertyAttributes = [
   "id", "publisherId", "title", "description", "operationType", "propertyType", "price",
@@ -235,6 +240,7 @@ export async function getPublisherProperty(id, publisherId) {
 }
 
 export async function createPublisherProperty(publisherId, data) {
+  assertOwnedPropertyImageUrls(data.images, publisherId);
   return sequelize.transaction(async (transaction) => {
     const profile = await PublisherProfile.findByPk(publisherId, { transaction });
     if (!profile) throw new AppError(409, "La cuenta no tiene un perfil de publicador habilitado.");
@@ -250,8 +256,13 @@ export async function createPublisherProperty(publisherId, data) {
   });
 }
 
-export async function updatePublisherProperty(id, publisherId, data) {
-  return sequelize.transaction(async (transaction) => {
+export async function updatePublisherProperty(id, publisherId, data, {
+  storage = storageClient,
+  logger = console,
+} = {}) {
+  if (has(data, "images")) assertOwnedPropertyImageUrls(data.images, publisherId);
+
+  const result = await sequelize.transaction(async (transaction) => {
     const property = await findOwnBase(id, publisherId, transaction);
     if (property.publicationStatus === "deleted") {
       throw new AppError(409, "La propiedad eliminada no puede modificarse.");
@@ -292,7 +303,7 @@ export async function updatePublisherProperty(id, publisherId, data) {
     const servicesChanged = has(data, "serviceCodes") && !sameList(data.serviceCodes, currentServiceCodes);
     const amenitiesChanged = has(data, "amenityCodes") && !sameList(data.amenityCodes, currentAmenityCodes);
     const changed = Object.keys(updates).length > 0 || imagesChanged || servicesChanged || amenitiesChanged;
-    if (!changed) return previous;
+    if (!changed) return { property: previous, removedImagePaths: [] };
 
     if (Object.keys(updates).length > 0) {
       await property.update(updates, { transaction, fields: Object.keys(updates) });
@@ -327,8 +338,24 @@ export async function updatePublisherProperty(id, publisherId, data) {
       amenities: nextAmenities,
     });
     await recordHistory(id, publisherId, "updated", historySnapshot(previous), historySnapshot(current), transaction);
-    return current;
+    const removedImagePaths = imagesChanged
+      ? currentImages
+        .filter((url) => !data.images.includes(url))
+        .map((url) => storagePathFromOwnedPublicUrl(url, publisherId))
+        .filter(Boolean)
+      : [];
+    return { property: current, removedImagePaths };
   });
+
+  if (result.removedImagePaths.length > 0) {
+    try {
+      await storage.remove(result.removedImagePaths);
+    } catch {
+      // PostgreSQL ya confirmó el reemplazo; el objeto huérfano se limpia de forma operativa.
+      logger.error("No se pudieron limpiar imágenes reemplazadas de Storage.");
+    }
+  }
+  return result.property;
 }
 
 async function changeStatus(id, publisherId, targetStatus, action) {

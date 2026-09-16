@@ -6,6 +6,7 @@ import publisherApplicationAdminRouter from "../modules/admin/publisherApplicati
 import propertyRouter from "../modules/properties/property.routes.js";
 import locationRouter from "../modules/locations/location.routes.js";
 import publisherPropertyRouter from "../modules/properties/publisherProperty.routes.js";
+import propertyImageRouter from "../modules/property-images/propertyImage.routes.js";
 
 const apiRouter = Router();
 apiRouter.use("/auth", authRouter);
@@ -15,6 +16,7 @@ apiRouter.use("/admin/publisher-applications", publisherApplicationAdminRouter);
 apiRouter.use("/properties", propertyRouter);
 apiRouter.use("/locations", locationRouter);
 apiRouter.use("/publisher/properties", publisherPropertyRouter);
+apiRouter.use("/publisher/property-images", propertyImageRouter);
 
 apiRouter.get("/health", (req, res) => {
   res.status(200).json({

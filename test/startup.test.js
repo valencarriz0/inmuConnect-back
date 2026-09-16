@@ -23,6 +23,9 @@ function run(script, overrides = {}) {
       NOMINATIM_BASE_URL: "https://nominatim.test",
       NOMINATIM_USER_AGENT: "InmuConnect-tests/1.0",
       NOMINATIM_TIMEOUT_MS: "5000",
+      SUPABASE_URL: "https://project.test",
+      SUPABASE_SECRET_KEY: "test-placeholder-secret",
+      SUPABASE_STORAGE_BUCKET: "property-images",
       ...overrides,
     },
   });
@@ -46,6 +49,11 @@ test("configuración inválida falla con mensajes claros y sin valores sensibles
     [{ NOMINATIM_TIMEOUT_MS: "99" }, "NOMINATIM_TIMEOUT_MS debe ser"],
     [{ NOMINATIM_TIMEOUT_MS: "30001" }, "NOMINATIM_TIMEOUT_MS debe ser"],
     [{ NOMINATIM_TIMEOUT_MS: "DO_NOT_EXPOSE" }, "NOMINATIM_TIMEOUT_MS debe ser"],
+    [{ SUPABASE_URL: "http://project.test" }, "SUPABASE_URL debe ser"],
+    [{ SUPABASE_URL: "DO_NOT_EXPOSE" }, "SUPABASE_URL debe ser"],
+    [{ SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "" }, "SUPABASE_SECRET_KEY es obligatoria"],
+    [{ SUPABASE_STORAGE_BUCKET: "" }, "SUPABASE_STORAGE_BUCKET debe ser"],
+    [{ SUPABASE_STORAGE_BUCKET: "../bucket" }, "SUPABASE_STORAGE_BUCKET debe ser"],
   ]) {
     const result = run('await import("./src/config/env.js")', overrides);
     assert.equal(result.status, 1);
@@ -66,6 +74,8 @@ test("SSL interpreta true/false y Sequelize se configura sin conectar ni registr
       assert.equal(env.NOMINATIM_BASE_URL, "https://nominatim.test");
       assert.equal(env.NOMINATIM_USER_AGENT, "InmuConnect-tests/1.0");
       assert.equal(env.NOMINATIM_TIMEOUT_MS, 5000);
+      assert.equal(env.SUPABASE_URL, "https://project.test");
+      assert.equal(env.SUPABASE_STORAGE_BUCKET, "property-images");
       assert.equal(sequelize.options.dialect, "postgres");
       assert.equal(sequelize.options.define.freezeTableName, true);
       assert.equal(sequelize.options.logging, false);
@@ -76,6 +86,15 @@ test("SSL interpreta true/false y Sequelize se configura sin conectar ni registr
     `, { DB_SSL: value });
     assert.equal(result.status, 0, result.stderr);
   }
+});
+
+test("configuración acepta SUPABASE_SERVICE_ROLE_KEY sólo como fallback legacy", () => {
+  const result = run(`
+    import assert from "node:assert/strict";
+    const { default: env } = await import("./src/config/env.js");
+    assert.equal(env.SUPABASE_SECRET_KEY, "legacy-placeholder");
+  `, { SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "legacy-placeholder" });
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test("importar app no abre puertos ni autentica PostgreSQL", () => {

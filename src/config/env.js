@@ -57,6 +57,28 @@ if (!/^\d+$/.test(nominatimTimeoutValue ?? "") || !Number.isInteger(nominatimTim
   throw new Error("NOMINATIM_TIMEOUT_MS debe ser un entero entre 100 y 30000.");
 }
 
+const supabaseUrlValue = process.env.SUPABASE_URL?.trim();
+let supabaseUrl;
+try {
+  const url = new URL(supabaseUrlValue);
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password) throw new Error();
+  supabaseUrl = url.href.replace(/\/+$/, "");
+} catch {
+  throw new Error("SUPABASE_URL debe ser una URL HTTPS válida.");
+}
+
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY?.trim()
+  || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+if (!supabaseSecretKey) {
+  throw new Error("SUPABASE_SECRET_KEY es obligatoria (o SUPABASE_SERVICE_ROLE_KEY como alternativa legacy).");
+}
+
+const supabaseStorageBucket = process.env.SUPABASE_STORAGE_BUCKET?.trim();
+if (!supabaseStorageBucket
+    || !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(supabaseStorageBucket)) {
+  throw new Error("SUPABASE_STORAGE_BUCKET debe ser un nombre válido de entre 3 y 63 caracteres.");
+}
+
 const env = Object.freeze({
   NODE_ENV: process.env.NODE_ENV?.trim() || "development",
   PORT: port,
@@ -68,6 +90,9 @@ const env = Object.freeze({
   NOMINATIM_BASE_URL: nominatimBaseUrl.replace(/\/+$/, ""),
   NOMINATIM_USER_AGENT: nominatimUserAgent,
   NOMINATIM_TIMEOUT_MS: nominatimTimeout,
+  SUPABASE_URL: supabaseUrl,
+  SUPABASE_SECRET_KEY: supabaseSecretKey,
+  SUPABASE_STORAGE_BUCKET: supabaseStorageBucket,
 });
 
 export default env;

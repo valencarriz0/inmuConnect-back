@@ -259,6 +259,7 @@ export async function createPublisherProperty(publisherId, data) {
 export async function updatePublisherProperty(id, publisherId, data, {
   storage = storageClient,
   logger = console,
+  changedBy = publisherId,
 } = {}) {
   if (has(data, "images")) assertOwnedPropertyImageUrls(data.images, publisherId);
 
@@ -337,7 +338,7 @@ export async function updatePublisherProperty(id, publisherId, data, {
       services: nextServices,
       amenities: nextAmenities,
     });
-    await recordHistory(id, publisherId, "updated", historySnapshot(previous), historySnapshot(current), transaction);
+    await recordHistory(id, changedBy, "updated", historySnapshot(previous), historySnapshot(current), transaction);
     const removedImagePaths = imagesChanged
       ? currentImages
         .filter((url) => !data.images.includes(url))
@@ -358,7 +359,7 @@ export async function updatePublisherProperty(id, publisherId, data, {
   return result.property;
 }
 
-async function changeStatus(id, publisherId, targetStatus, action) {
+async function changeStatus(id, publisherId, targetStatus, action, changedBy) {
   return sequelize.transaction(async (transaction) => {
     const property = await findOwnBase(id, publisherId, transaction);
     if (property.publicationStatus === "deleted") {
@@ -373,20 +374,20 @@ async function changeStatus(id, publisherId, targetStatus, action) {
       fields: ["publicationStatus"],
     });
     const changed = await loadDetailedProperty(property, transaction);
-    await recordHistory(id, publisherId, action, previousData, historySnapshot(changed), transaction);
+    await recordHistory(id, changedBy, action, previousData, historySnapshot(changed), transaction);
     return changed;
   });
 }
 
-export function pausePublisherProperty(id, publisherId) {
-  return changeStatus(id, publisherId, "paused", "paused");
+export function pausePublisherProperty(id, publisherId, changedBy = publisherId) {
+  return changeStatus(id, publisherId, "paused", "paused", changedBy);
 }
 
-export function reactivatePublisherProperty(id, publisherId) {
-  return changeStatus(id, publisherId, "active", "reactivated");
+export function reactivatePublisherProperty(id, publisherId, changedBy = publisherId) {
+  return changeStatus(id, publisherId, "active", "reactivated", changedBy);
 }
 
-export async function deletePublisherProperty(id, publisherId) {
+export async function deletePublisherProperty(id, publisherId, changedBy = publisherId) {
   return sequelize.transaction(async (transaction) => {
     const property = await findOwnBase(id, publisherId, transaction);
     const current = await loadDetailedProperty(property, transaction);
@@ -398,7 +399,7 @@ export async function deletePublisherProperty(id, publisherId) {
       fields: ["publicationStatus"],
     });
     const deleted = await loadDetailedProperty(property, transaction);
-    await recordHistory(id, publisherId, "deleted", previousData, historySnapshot(deleted), transaction);
+    await recordHistory(id, changedBy, "deleted", previousData, historySnapshot(deleted), transaction);
     return deleted;
   });
 }

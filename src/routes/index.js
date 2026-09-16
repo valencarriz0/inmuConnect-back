@@ -10,6 +10,9 @@ import propertyImageRouter from "../modules/property-images/propertyImage.routes
 import publisherConsultationRouter from "../modules/consultations/publisherConsultation.routes.js";
 import publisherMetricRouter from "../modules/metrics/publisherMetric.routes.js";
 import notificationRouter from "../modules/notifications/notification.routes.js";
+import adminUserRouter from "../modules/admin/adminUser.routes.js";
+import adminPropertyRouter from "../modules/admin/adminProperty.routes.js";
+import adminMetricRouter from "../modules/admin/adminMetric.routes.js";
 
 const apiRouter = Router();
 apiRouter.use("/auth", authRouter);
@@ -23,6 +26,9 @@ apiRouter.use("/publisher/property-images", propertyImageRouter);
 apiRouter.use("/publisher/consultations", publisherConsultationRouter);
 apiRouter.use("/publisher/metrics", publisherMetricRouter);
 apiRouter.use("/notifications", notificationRouter);
+apiRouter.use("/admin/users", adminUserRouter);
+apiRouter.use("/admin/properties", adminPropertyRouter);
+apiRouter.use("/admin/metrics", adminMetricRouter);
 
 apiRouter.get("/health", (req, res) => {
   res.status(200).json({

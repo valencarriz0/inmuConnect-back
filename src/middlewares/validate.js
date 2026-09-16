@@ -45,6 +45,8 @@ const fieldMessages = {
   serviceCodes: "Ingresá códigos de servicios válidos y sin duplicados.",
   amenityCodes: "Ingresá códigos de comodidades válidos y sin duplicados.",
   images: "Ingresá entre 2 y 5 URLs HTTP válidas.",
+  message: "Ingresá un mensaje válido.",
+  propertyId: "Ingresá una propiedad válida.",
 };
 
 export function validateData(schema, data) {

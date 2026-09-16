@@ -22,11 +22,12 @@ test("bcrypt usa 12 rondas y verifica contraseñas correctas e incorrectas", asy
   assert.equal(await comparePassword("wrong-password", hash), false);
 });
 
-test("JWT firmado sólo incluye sub, iat y exp; vence a las ocho horas", () => {
+test("JWT firmado incluye la versión de autenticación y vence a las ocho horas", () => {
   const token = signAccessToken(id);
   const payload = verifyAccessToken(token);
   assert.equal(payload.sub, id);
-  assert.deepEqual(Object.keys(payload).sort(), ["exp", "iat", "sub"]);
+  assert.deepEqual(Object.keys(payload).sort(), ["exp", "iat", "sub", "v"]);
+  assert.equal(payload.v, 0);
   assert.equal(payload.exp - payload.iat, 8 * 60 * 60);
   assert.equal(jwt.decode(token, { complete: true }).header.alg, "HS256");
 });
@@ -53,7 +54,7 @@ test("serializer usa una lista explícita incluso con instancia unscoped y campo
   });
   const result = serializeUser(user);
   assert.deepEqual(Object.keys(result).sort(),
-    ["id", "firstName", "lastName", "email", "phone", "role", "accountStatus", "createdAt", "updatedAt"].sort());
+    ["id", "firstName", "lastName", "email", "phone", "role", "accountStatus", "emailVerifiedAt", "createdAt", "updatedAt"].sort());
   assert.equal(result.id, id);
   assert.ok(!JSON.stringify(result).includes("private-hash"));
 });

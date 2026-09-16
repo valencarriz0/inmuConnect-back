@@ -12,6 +12,7 @@ export default function errorHandler(error, req, res, next) {
   if (error instanceof AppError) {
     return res.status(statusCode).json({
       error: error.message,
+      ...(error.code ? { code: error.code } : {}),
       ...(error.details ? { details: error.details } : {}),
     });
   }

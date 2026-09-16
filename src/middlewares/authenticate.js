@@ -20,6 +20,7 @@ async function resolveUser(req, required) {
   const user = await User.findByPk(payload.sub);
   if (!user) throw new AppError(401, "No autenticado.");
   if (user.accountStatus !== "active") throw new AppError(403, "Cuenta deshabilitada.");
+  if (payload.v !== (user.authVersion ?? 0)) throw new AppError(401, "No autenticado.");
   return user;
 }
 

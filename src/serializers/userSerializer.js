@@ -7,6 +7,7 @@ export default function serializeUser(user) {
     phone: user.phone ?? null,
     role: user.role,
     accountStatus: user.accountStatus,
+    emailVerifiedAt: user.emailVerifiedAt ?? null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

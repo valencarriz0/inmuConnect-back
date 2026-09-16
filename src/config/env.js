@@ -37,6 +37,42 @@ if (!/^[1-9]\d*(s|m|h|d)$/.test(jwtExpiresIn) || !Number.isSafeInteger(Number(jw
   throw new Error("JWT_EXPIRES_IN debe ser una duración positiva con unidad s, m, h o d (por ejemplo, 8h).");
 }
 
+const appUrlValue = process.env.APP_URL?.trim() ?? "http://localhost:5173";
+let appUrl;
+try {
+  const url = new URL(appUrlValue);
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) throw new Error();
+  appUrl = url.href.replace(/\/+$/, "");
+} catch {
+  throw new Error("APP_URL debe ser una URL HTTP válida.");
+}
+
+const smtpHost = process.env.SMTP_HOST?.trim();
+if (!smtpHost) throw new Error("SMTP_HOST es obligatoria.");
+const smtpPortValue = process.env.SMTP_PORT?.trim();
+const smtpPort = Number(smtpPortValue);
+if (!/^\d+$/.test(smtpPortValue ?? "") || !Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+  throw new Error("SMTP_PORT debe ser un entero entre 1 y 65535.");
+}
+const smtpSecureValue = process.env.SMTP_SECURE?.trim().toLowerCase();
+if (!['true', 'false'].includes(smtpSecureValue)) throw new Error("SMTP_SECURE debe ser true o false.");
+const smtpUser = process.env.SMTP_USER?.trim();
+const smtpPassword = process.env.SMTP_PASSWORD;
+const mailFrom = process.env.MAIL_FROM?.trim();
+if (!smtpUser || !smtpPassword || !mailFrom) throw new Error("SMTP_USER, SMTP_PASSWORD y MAIL_FROM son obligatorias.");
+
+function positiveMinutes(name, fallback) {
+  const value = process.env[name]?.trim() ?? String(fallback);
+  const minutes = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
+    throw new Error(`${name} debe ser un entero entre 1 y 10080.`);
+  }
+  return minutes;
+}
+
+const emailVerificationTtlMinutes = positiveMinutes("EMAIL_VERIFICATION_TTL_MINUTES", 1440);
+const passwordResetTtlMinutes = positiveMinutes("PASSWORD_RESET_TTL_MINUTES", 30);
+
 const nominatimBaseUrl = process.env.NOMINATIM_BASE_URL?.trim();
 try {
   const url = new URL(nominatimBaseUrl);
@@ -87,6 +123,15 @@ const env = Object.freeze({
   CORS_ORIGIN: process.env.CORS_ORIGIN?.trim() || "http://localhost:5173",
   JWT_SECRET: jwtSecret,
   JWT_EXPIRES_IN: jwtExpiresIn,
+  APP_URL: appUrl,
+  SMTP_HOST: smtpHost,
+  SMTP_PORT: smtpPort,
+  SMTP_SECURE: smtpSecureValue === "true",
+  SMTP_USER: smtpUser,
+  SMTP_PASSWORD: smtpPassword,
+  MAIL_FROM: mailFrom,
+  EMAIL_VERIFICATION_TTL_MINUTES: emailVerificationTtlMinutes,
+  PASSWORD_RESET_TTL_MINUTES: passwordResetTtlMinutes,
   NOMINATIM_BASE_URL: nominatimBaseUrl.replace(/\/+$/, ""),
   NOMINATIM_USER_AGENT: nominatimUserAgent,
   NOMINATIM_TIMEOUT_MS: nominatimTimeout,

@@ -7,6 +7,8 @@ import { Op, Sequelize, UniqueConstraintError } from "sequelize";
 import app from "../src/app.js";
 import sequelize from "../src/config/database.js";
 import { User, PublisherApplication, PublisherProfile, Notification } from "../src/models/index.js";
+import AuthToken from "../src/models/AuthToken.js";
+import { mailer } from "../src/integrations/mail/mailer.js";
 import {
   approveApplication,
   createApplication,
@@ -21,6 +23,9 @@ const userId = "c54acdd0-348d-4f26-86d9-0e8da651c7b2";
 const adminId = "97b55e08-ac69-48de-b8f4-032fc8695c33";
 const applicationId = "d42e9270-c765-43ce-b268-f4c4f87c7b09";
 const password = "test-password";
+mock.method(AuthToken, "update", async () => [0]);
+mock.method(AuthToken, "create", async (data) => AuthToken.build(data));
+mock.method(mailer, "sendVerificationEmail", async () => {});
 const publicBody = {
   firstName: "  María  ", lastName: "  Pérez  ", email: "  MARIA@EXAMPLE.COM ",
   phone: "+54 (341) 123-4567", password, passwordConfirm: password,
@@ -35,6 +40,7 @@ function buildUser(overrides = {}) {
   return User.unscoped().build({
     id: userId, firstName: "María", lastName: "Pérez", email: "maria@example.com",
     phone: null, passwordHash: "DO_NOT_EXPOSE", role: "interested", accountStatus: "active",
+    emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), authVersion: 0,
     createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   });
@@ -135,11 +141,12 @@ test("registro público crea User interested y solicitud pending en la misma tra
   assert.equal(profileCreate.mock.callCount(), 0);
   assert.equal(result.user.role, "interested");
   assert.equal(result.application.status, "pending");
-  assert.equal(verifyAccessToken(result.token).sub, userId);
+  assert.equal(result.token, undefined);
+  assert.equal(result.verificationRequired, true);
   assertPublic(result);
 });
 
-test("JWT público se genera únicamente después del commit", async (t) => {
+test("registro público requiere verificación después del commit", async (t) => {
   let committed = false;
   const transaction = { LOCK: { UPDATE: "UPDATE" } };
   t.mock.method(sequelize, "transaction", async (callback) => {
@@ -152,10 +159,10 @@ test("JWT público se genera únicamente después del commit", async (t) => {
   noActiveApplications(t);
   t.mock.method(PublisherApplication, "create", async (values) => buildApplication(values));
   const originalSign = JSON.stringify;
-  // El resultado sólo puede contener token una vez resuelta la transacción administrada.
   const result = await registerPublicApplication(publicBody);
   assert.equal(committed, true);
-  assert.equal(typeof result.token, "string");
+  assert.equal(result.token, undefined);
+  assert.equal(result.verificationRequired, true);
   assert.equal(JSON.stringify, originalSign);
 });
 
@@ -491,7 +498,8 @@ test("HTTP conecta registro público, solicitud autenticada y consulta me con lo
     assert.equal(result.status, 201);
     assert.equal(result.body.user.role, "interested");
     assert.equal(result.body.application.status, "pending");
-    assert.equal(verifyAccessToken(result.body.token).sub, userId);
+    assert.equal(result.body.token, undefined);
+    assert.equal(result.body.verificationRequired, true);
     assertPublic(result.body);
 
     result = await http(baseUrl, "/api/publisher-applications", {

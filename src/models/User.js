@@ -50,6 +50,18 @@ const User = sequelize.define(
       defaultValue: "active",
       validate: { isIn: [["active", "disabled"]] },
     },
+    emailVerifiedAt: {
+      type: DataTypes.DATE,
+      field: "email_verified_at",
+      allowNull: true,
+    },
+    authVersion: {
+      type: DataTypes.INTEGER,
+      field: "auth_version",
+      allowNull: false,
+      defaultValue: 0,
+      validate: { min: 0 },
+    },
     createdAt: {
       type: DataTypes.DATE,
       field: "created_at",

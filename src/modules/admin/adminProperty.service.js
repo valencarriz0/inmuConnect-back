@@ -60,7 +60,10 @@ export async function listAdminProperties(filters) {
   });
   const total = typeof count === "number" ? count : count.length;
   return {
-    properties: rows.map(serializePublisherProperty),
+    properties: rows.map((property) => ({
+      ...serializePublisherProperty(property),
+      publisherId: property.publisherId,
+    })),
     pagination: {
       page: filters.page,
       limit: filters.limit,

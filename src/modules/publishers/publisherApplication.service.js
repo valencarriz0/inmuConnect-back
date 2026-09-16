@@ -4,7 +4,8 @@ import { PublisherApplication, PublisherProfile, Notification, User } from "../.
 import AppError from "../../errors/AppError.js";
 import { validateData } from "../../middlewares/validate.js";
 import serializePublisherApplication from "../../serializers/publisherApplicationSerializer.js";
-import { signAccessToken } from "../../utils/jwt.js";
+import { issueToken } from "../auth/auth.service.js";
+import { mailer } from "../../integrations/mail/mailer.js";
 import { createUser } from "../users/user.service.js";
 import { applicationSchema, publicApplicationSchema, rejectSchema } from "./publisherApplication.validation.js";
 
@@ -73,7 +74,8 @@ export async function registerPublicApplication(data) {
         password: input.password,
       }, { transaction });
       const application = await persistApplication(user.id, input, transaction);
-      return { user, application: serializePublisherApplication(application) };
+      const token = await issueToken(user.id, "email_verification", { transaction });
+      return { user, application: serializePublisherApplication(application), token };
     });
   } catch (error) {
     if (error instanceof AppError && error.statusCode === 409 &&
@@ -83,7 +85,8 @@ export async function registerPublicApplication(data) {
     throw error;
   }
 
-  return { ...result, token: signAccessToken(result.user.id) };
+  await mailer.sendVerificationEmail({ to: result.user.email, token: result.token });
+  return { user: result.user, application: result.application, verificationRequired: true, message: "Te enviamos un correo para verificar tu cuenta." };
 }
 
 export async function createApplication(user, data) {
@@ -136,6 +139,9 @@ async function getValidApplicant(userId, transaction) {
   });
   if (!applicant || applicant.accountStatus !== "active" || applicant.role !== "interested") {
     throw new AppError(409, "La cuenta solicitante ya no puede convertirse en publicador.");
+  }
+  if (!applicant.emailVerifiedAt) {
+    throw new AppError(409, "La cuenta solicitante debe verificar su correo electrónico antes de ser aprobada.");
   }
   return applicant;
 }

@@ -8,12 +8,18 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import app from "../src/app.js";
 import User from "../src/models/User.js";
+import AuthToken from "../src/models/AuthToken.js";
+import { mailer } from "../src/integrations/mail/mailer.js";
 import { hashPassword, comparePassword } from "../src/utils/password.js";
 import { signAccessToken, verifyAccessToken } from "../src/utils/jwt.js";
 import { createUser } from "../src/modules/users/user.service.js";
 import sequelize from "../src/config/database.js";
 
 const queryGuard = mock.method(Sequelize.prototype, "query", () => assert.fail("La prueba no puede ejecutar SQL"));
+mock.method(sequelize, "transaction", async (callback) => callback({ LOCK: { UPDATE: "UPDATE" } }));
+mock.method(AuthToken, "update", async () => [0]);
+mock.method(AuthToken, "create", async (data) => AuthToken.build(data));
+mock.method(mailer, "sendVerificationEmail", async () => {});
 const id = "c54acdd0-348d-4f26-86d9-0e8da651c7b2";
 const password = "test-password";
 const registration = {
@@ -28,6 +34,7 @@ function user(overrides = {}) {
   return User.unscoped().build({
     id, firstName: "María José", lastName: "O’Connor-Pérez", email: "test@example.com",
     phone: null, passwordHash, role: "interested", accountStatus: "active",
+    emailVerifiedAt: new Date("2026-01-01T00:00:00Z"), authVersion: 0,
     createdAt: new Date("2026-01-01T00:00:00Z"), updatedAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   });
@@ -71,7 +78,7 @@ after(async () => {
   assert.equal(queryGuard.mock.callCount(), 0, "No debe intentarse ninguna consulta real");
 });
 
-test("register normaliza datos, guarda bcrypt y devuelve sólo usuario público y JWT", async (t) => {
+test("register normaliza datos, guarda bcrypt y requiere verificación", async (t) => {
   const findOne = t.mock.method(User, "findOne", async () => null);
   let stored;
   t.mock.method(User, "create", async (data) => { stored = data; return user(data); });
@@ -89,7 +96,8 @@ test("register normaliza datos, guarda bcrypt y devuelve sólo usuario público 
     ["firstName", "lastName", "email", "phone", "passwordHash", "role", "accountStatus"].sort());
   const whereSql = sequelize.getQueryInterface().queryGenerator.whereQuery(findOne.mock.calls[0].arguments[0].where);
   assert.match(whereSql, /lower\("email"\) = 'test@example.com'/);
-  assert.equal(verifyAccessToken(result.body.token).sub, id);
+  assert.equal(result.body.token, undefined);
+  assert.equal(result.body.verificationRequired, true);
   assertPublic(result.body);
   assert.ok(!JSON.stringify(result.body).includes(stored.passwordHash));
 });
@@ -267,7 +275,7 @@ test("me usa el usuario actual y desoye role y accountStatus del JWT", async (t)
     assert.equal(userId, id);
     return current;
   });
-  const token = jwt.sign({ sub: id, role: "admin", accountStatus: "active" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const token = jwt.sign({ sub: id, v: 0, role: "admin", accountStatus: "active" }, process.env.JWT_SECRET, { expiresIn: "1h" });
   let result = await request("/api/auth/me", { token });
   assert.equal(result.status, 200);
   assert.equal(result.body.user.role, "interested");

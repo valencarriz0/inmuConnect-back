@@ -15,8 +15,11 @@ import PropertyView from "./PropertyView.js";
 import SearchAlert from "./SearchAlert.js";
 import PropertyChangeHistory from "./PropertyChangeHistory.js";
 import Notification from "./Notification.js";
+import AuthToken from "./AuthToken.js";
 
 // Las acciones referenciales reflejan las FK existentes; no se ejecuta DDL.
+AuthToken.belongsTo(User, { as: "user", foreignKey: "userId", targetKey: "id", onDelete: "CASCADE", onUpdate: "NO ACTION" });
+User.hasMany(AuthToken, { as: "authTokens", foreignKey: "userId", sourceKey: "id", onDelete: "CASCADE", onUpdate: "NO ACTION" });
 PublisherApplication.belongsTo(User, {
   as: "applicant",
   foreignKey: "userId",
@@ -461,4 +464,5 @@ export {
   SearchAlert,
   PropertyChangeHistory,
   Notification,
+  AuthToken,
 };

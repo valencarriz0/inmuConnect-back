@@ -27,9 +27,9 @@ const types = {
   smallint: "SMALLINT", boolean: "BOOLEAN", jsonb: "JSONB", "timestamp with time zone": "DATE",
 };
 
-test("importar registra exactamente 17 modelos sin HTTP, conexiones, consultas ni sincronización", async () => {
-  assert.equal(Object.keys(models).length, 17);
-  assert.deepEqual(Object.keys(models).sort(), Object.values(snapshot.tables).sort());
+test("importar registra los modelos existentes y el de tokens de autenticación sin I/O", async () => {
+  assert.equal(Object.keys(models).length, 18);
+  assert.deepEqual(Object.keys(models).filter((name) => name !== "AuthToken").sort(), Object.values(snapshot.tables).sort());
   assert.deepEqual(Object.keys(sequelize.models).sort(), Object.keys(models).sort());
   const importedAgain = await import("../src/models/index.js");
   assert.equal(importedAgain, models);
@@ -45,7 +45,9 @@ for (const [table, name] of Object.entries(snapshot.tables)) {
     assert.equal(model.getTableName().schema, "inmobiliaria");
     assert.equal(model.tableName, table);
     assert.equal(model.options.freezeTableName, true);
-    assert.deepEqual(Object.keys(attributes).sort(), columns.map((column) => camelCase(column.column_name)).sort());
+    const expectedAttributes = columns.map((column) => camelCase(column.column_name));
+    if (name === "User") expectedAttributes.push("emailVerifiedAt", "authVersion");
+    assert.deepEqual(Object.keys(attributes).sort(), expectedAttributes.sort());
     assert.deepEqual(model.primaryKeyAttributes, pk.columns.map(camelCase));
 
     for (const column of columns) {
@@ -112,6 +114,13 @@ test("las 26 FK tienen asociaciones en ambos sentidos y acciones idénticas a Po
     assert.equal(inverse[0].sourceKey, targetKey, fk.name);
     assert.equal(inverse[0].options.onDelete, actions[fk.on_delete], fk.name);
   }
+});
+
+test("AuthToken almacena hashes, propósitos y pertenece al usuario", () => {
+  const attributes = models.AuthToken.getAttributes();
+  assert.deepEqual(Object.keys(attributes).sort(), ["id", "userId", "purpose", "tokenHash", "expiresAt", "usedAt", "createdAt"].sort());
+  assert.equal(models.AuthToken.associations.user.target, models.User);
+  assert.equal(models.User.associations.authTokens.target, models.AuthToken);
 });
 
 test("aliases distinguen solicitante, revisor y actor, y la propiedad pertenece al perfil", () => {

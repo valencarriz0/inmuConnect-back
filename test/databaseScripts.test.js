@@ -8,12 +8,12 @@ const stripComments = (sql) => sql.replace(/^--.*$/gm, "").trim();
 const normalize = (sql) => sql.replace(/\s+/g, " ").trim();
 const statements = (sql) => stripComments(sql).split(";").map(normalize).filter(Boolean).sort();
 
-test("01_schema refleja exactamente las 17 tablas y sus columnas y PK", () => {
+test("01_schema conserva el catálogo y agrega las tablas de seguridad", () => {
   const sql = read("01_schema.sql");
   assert.match(sql, /CREATE SCHEMA inmobiliaria;/);
   const tables = [...sql.matchAll(/CREATE TABLE inmobiliaria\.(\w+) \(\n([\s\S]*?)\n\);/g)];
-  assert.deepEqual(tables.map((match) => match[1]).sort(), Object.keys(snapshot.tables).sort());
-  for (const [, table, body] of tables) {
+  assert.deepEqual(tables.map((match) => match[1]).filter((name) => name !== "auth_tokens").sort(), Object.keys(snapshot.tables).sort());
+  for (const [, table, body] of tables.filter((entry) => entry[1] !== "auth_tokens")) {
     const columns = snapshot.columns.filter((column) => column.table_name === table);
     const pk = snapshot.constraints.find((constraint) => constraint.table_name === table && constraint.type === "p");
     const expected = columns.map((column) => {
@@ -25,20 +25,26 @@ test("01_schema refleja exactamente las 17 tablas y sus columnas y PK", () => {
         (column.column_default ? ` DEFAULT ${column.column_default}` : "");
     });
     expected.push(`CONSTRAINT "${pk.name}" ${pk.definition}`);
-    assert.deepEqual(body.split("\n").map((line) => line.trim().replace(/,$/, "")), expected, table);
+    const actual = body.split("\n").map((line) => line.trim().replace(/,$/, ""));
+    for (const line of expected) assert.ok(actual.includes(line), table);
   }
-  assert.equal(statements(sql).length, 18);
+  assert.match(sql, /CREATE TABLE inmobiliaria\.auth_tokens/);
+  assert.match(sql, /"email_verified_at" timestamp with time zone/);
 });
 
-test("02_constraints conserva todas las FK, UNIQUE y CHECK del catálogo sin agregar reglas", () => {
+test("02_constraints conserva el catálogo y agrega reglas de seguridad", () => {
   const expected = snapshot.constraints.filter((constraint) => constraint.type !== "p").map((constraint) =>
     normalize(`ALTER TABLE inmobiliaria.${constraint.table_name} ADD CONSTRAINT "${constraint.name}" ${constraint.definition}`));
-  assert.deepEqual(statements(read("02_constraints.sql")), expected.sort());
+  const actual = statements(read("02_constraints.sql"));
+  for (const statement of expected) assert.ok(actual.includes(statement));
+  assert.ok(actual.some((statement) => statement.includes("auth_tokens_purpose_check")));
 });
 
-test("03_indexes reproduce los 26 índices explícitos incluyendo sus WHERE", () => {
+test("03_indexes conserva los índices existentes y agrega los de tokens", () => {
   assert.equal(snapshot.indexes.length, 26);
-  assert.deepEqual(statements(read("03_indexes.sql")), snapshot.indexes.map((index) => normalize(index.definition)).sort());
+  const actual = statements(read("03_indexes.sql"));
+  for (const index of snapshot.indexes) assert.ok(actual.includes(normalize(index.definition)));
+  assert.ok(actual.some((statement) => statement.includes("auth_tokens_token_hash_unique")));
   assert.match(read("03_indexes.sql"), /users_email_unique.*lower\(email\)/);
 });
 

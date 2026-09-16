@@ -13,6 +13,17 @@ const fieldMessages = {
   rejectionReason: "Ingresá un motivo de rechazo válido.",
   status: "Seleccioná un estado de solicitud válido.",
   id: "Ingresá un identificador válido.",
+  operationType: "Seleccioná un tipo de operación válido.",
+  propertyType: "Seleccioná un tipo de propiedad válido.",
+  provinceId: "Ingresá una provincia válida.",
+  cityId: "Ingresá una ciudad válida.",
+  currency: "Seleccioná una moneda válida.",
+  minPrice: "Ingresá un precio mínimo válido.",
+  maxPrice: "Ingresá un precio máximo válido.",
+  sort: "Seleccioná un orden válido.",
+  page: "Ingresá una página válida.",
+  limit: "Ingresá un límite entre 1 y 50.",
+  q: "Ingresá al menos 2 caracteres para buscar.",
 };
 
 export function validateData(schema, data) {

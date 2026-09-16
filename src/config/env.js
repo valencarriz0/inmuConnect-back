@@ -37,6 +37,26 @@ if (!/^[1-9]\d*(s|m|h|d)$/.test(jwtExpiresIn) || !Number.isSafeInteger(Number(jw
   throw new Error("JWT_EXPIRES_IN debe ser una duración positiva con unidad s, m, h o d (por ejemplo, 8h).");
 }
 
+const nominatimBaseUrl = process.env.NOMINATIM_BASE_URL?.trim();
+try {
+  const url = new URL(nominatimBaseUrl);
+  if (!["http:", "https:"].includes(url.protocol) || !url.hostname) throw new Error();
+} catch {
+  throw new Error("NOMINATIM_BASE_URL debe ser una URL HTTP válida.");
+}
+
+const nominatimUserAgent = process.env.NOMINATIM_USER_AGENT?.trim();
+if (!nominatimUserAgent || nominatimUserAgent.length < 10) {
+  throw new Error("NOMINATIM_USER_AGENT es obligatorio y debe identificar la aplicación.");
+}
+
+const nominatimTimeoutValue = process.env.NOMINATIM_TIMEOUT_MS?.trim();
+const nominatimTimeout = Number(nominatimTimeoutValue);
+if (!/^\d+$/.test(nominatimTimeoutValue ?? "") || !Number.isInteger(nominatimTimeout) ||
+    nominatimTimeout < 100 || nominatimTimeout > 30000) {
+  throw new Error("NOMINATIM_TIMEOUT_MS debe ser un entero entre 100 y 30000.");
+}
+
 const env = Object.freeze({
   NODE_ENV: process.env.NODE_ENV?.trim() || "development",
   PORT: port,
@@ -45,6 +65,9 @@ const env = Object.freeze({
   CORS_ORIGIN: process.env.CORS_ORIGIN?.trim() || "http://localhost:5173",
   JWT_SECRET: jwtSecret,
   JWT_EXPIRES_IN: jwtExpiresIn,
+  NOMINATIM_BASE_URL: nominatimBaseUrl.replace(/\/+$/, ""),
+  NOMINATIM_USER_AGENT: nominatimUserAgent,
+  NOMINATIM_TIMEOUT_MS: nominatimTimeout,
 });
 
 export default env;

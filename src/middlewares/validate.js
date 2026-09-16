@@ -24,6 +24,8 @@ const fieldMessages = {
   page: "Ingresá una página válida.",
   limit: "Ingresá un límite entre 1 y 50.",
   q: "Ingresá al menos 2 caracteres para buscar.",
+  street: "Ingresá una calle válida de entre 2 y 150 caracteres.",
+  streetNumber: "Ingresá una altura válida de hasta 30 caracteres.",
 };
 
 export function validateData(schema, data) {

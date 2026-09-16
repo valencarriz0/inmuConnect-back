@@ -1,5 +1,7 @@
 import { Op } from "sequelize";
 import { City, Province } from "../../models/index.js";
+import AppError from "../../errors/AppError.js";
+import nominatimClient from "../../integrations/nominatim/nominatimClient.js";
 import {
   serializeCity,
   serializeCityResult,
@@ -57,4 +59,22 @@ export async function searchLocations(query) {
     return left.label.localeCompare(right.label, "es");
   }).slice(0, 10);
   return { locations: results };
+}
+
+export async function geocodeAddress(data, { client = nominatimClient } = {}) {
+  const city = await City.findByPk(data.cityId, {
+    attributes: ["id", "name", "provinceId"],
+    include: [{ association: "province", attributes: ["id", "name", "country"], required: true }],
+  });
+  if (!city) throw new AppError(404, "Localidad no encontrada.");
+
+  const value = typeof city.get === "function" ? city.get({ plain: true }) : city;
+  return client.geocode({
+    cityId: value.id,
+    street: data.street,
+    streetNumber: data.streetNumber,
+    city: value.name,
+    province: value.province.name,
+    country: value.province.country,
+  });
 }

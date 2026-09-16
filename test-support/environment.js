@@ -9,3 +9,6 @@ process.env.DB_SSL = "false";
 process.env.CORS_ORIGIN = "http://localhost:5173";
 process.env.JWT_SECRET = "test-only-fake-secret-never-use-in-production";
 process.env.JWT_EXPIRES_IN = "8h";
+process.env.NOMINATIM_BASE_URL = "https://nominatim.test";
+process.env.NOMINATIM_USER_AGENT = "InmuConnect-tests/1.0";
+process.env.NOMINATIM_TIMEOUT_MS = "5000";

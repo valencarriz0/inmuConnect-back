@@ -18,3 +18,11 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const geocodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.NODE_ENV === "production" ? 30 : 1000,
+  message: { error: "Demasiadas solicitudes de geocodificación. Intentá nuevamente más tarde." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

@@ -11,3 +11,7 @@ export async function cities(req, res) {
 export async function search(req, res) {
   res.status(200).json(await service.searchLocations(req.query.q));
 }
+
+export async function geocode(req, res) {
+  res.status(200).json(await service.geocodeAddress(req.body));
+}

@@ -20,6 +20,9 @@ function run(script, overrides = {}) {
       CORS_ORIGIN: "http://localhost:5173",
       JWT_SECRET: "test-only-fake-secret-never-use-in-production",
       JWT_EXPIRES_IN: "8h",
+      NOMINATIM_BASE_URL: "https://nominatim.test",
+      NOMINATIM_USER_AGENT: "InmuConnect-tests/1.0",
+      NOMINATIM_TIMEOUT_MS: "5000",
       ...overrides,
     },
   });
@@ -37,6 +40,12 @@ test("configuración inválida falla con mensajes claros y sin valores sensibles
     [{ JWT_EXPIRES_IN: "DO_NOT_EXPOSE" }, "JWT_EXPIRES_IN debe ser"],
     [{ JWT_EXPIRES_IN: "0h" }, "JWT_EXPIRES_IN debe ser"],
     [{ JWT_EXPIRES_IN: "3600" }, "JWT_EXPIRES_IN debe ser"],
+    [{ NOMINATIM_BASE_URL: "DO_NOT_EXPOSE" }, "NOMINATIM_BASE_URL debe ser"],
+    [{ NOMINATIM_USER_AGENT: "" }, "NOMINATIM_USER_AGENT es obligatorio"],
+    [{ NOMINATIM_USER_AGENT: "corto" }, "NOMINATIM_USER_AGENT es obligatorio"],
+    [{ NOMINATIM_TIMEOUT_MS: "99" }, "NOMINATIM_TIMEOUT_MS debe ser"],
+    [{ NOMINATIM_TIMEOUT_MS: "30001" }, "NOMINATIM_TIMEOUT_MS debe ser"],
+    [{ NOMINATIM_TIMEOUT_MS: "DO_NOT_EXPOSE" }, "NOMINATIM_TIMEOUT_MS debe ser"],
   ]) {
     const result = run('await import("./src/config/env.js")', overrides);
     assert.equal(result.status, 1);
@@ -54,6 +63,9 @@ test("SSL interpreta true/false y Sequelize se configura sin conectar ni registr
       assert.ok(Object.isFrozen(env));
       assert.equal(env.DB_SSL, ${enabled});
       assert.equal(env.PORT, 3000);
+      assert.equal(env.NOMINATIM_BASE_URL, "https://nominatim.test");
+      assert.equal(env.NOMINATIM_USER_AGENT, "InmuConnect-tests/1.0");
+      assert.equal(env.NOMINATIM_TIMEOUT_MS, 5000);
       assert.equal(sequelize.options.dialect, "postgres");
       assert.equal(sequelize.options.define.freezeTableName, true);
       assert.equal(sequelize.options.logging, false);

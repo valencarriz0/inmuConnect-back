@@ -29,8 +29,22 @@ const commonFields = [
   "id", "title", "description", "operationType", "propertyType", "price", "currency",
   "street", "streetNumber", "totalArea", "rooms", "bedrooms", "bathrooms", "age",
   "propertyCondition", "acceptsPets", "garage", "expenses", "taxes", "commissions",
-  "latitude", "longitude", "createdAt",
+  "createdAt",
 ];
+
+function coordinates(latitudeValue, longitudeValue) {
+  if (latitudeValue === null || latitudeValue === undefined || latitudeValue === "" ||
+      longitudeValue === null || longitudeValue === undefined || longitudeValue === "") {
+    return { latitude: null, longitude: null };
+  }
+  const latitude = Number(latitudeValue);
+  const longitude = Number(longitudeValue);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    return { latitude: null, longitude: null };
+  }
+  return { latitude, longitude };
+}
 
 function serializeCommon(property) {
   const value = plain(property);
@@ -38,6 +52,7 @@ function serializeCommon(property) {
   for (const field of commonFields) result[field] = value[field] ?? null;
   return {
     ...result,
+    ...coordinates(value.latitude, value.longitude),
     ...serializeLocation(value.city),
     images: sortedImageUrls(value.images),
   };

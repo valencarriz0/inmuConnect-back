@@ -47,6 +47,7 @@ for (const [table, name] of Object.entries(snapshot.tables)) {
     assert.equal(model.options.freezeTableName, true);
     const expectedAttributes = columns.map((column) => camelCase(column.column_name));
     if (name === "User") expectedAttributes.push("emailVerifiedAt", "authVersion");
+    if (name === "PropertyView") expectedAttributes.push("userId");
     assert.deepEqual(Object.keys(attributes).sort(), expectedAttributes.sort());
     assert.deepEqual(model.primaryKeyAttributes, pk.columns.map(camelCase));
 
@@ -168,7 +169,8 @@ test("las restricciones UNIQUE declaradas no agregan unicidad simple a email", (
 
 test("se conservan las consultas anónimas, métricas sin usuario y nulls funcionales", () => {
   assert.equal(models.Consultation.getAttributes().userId.allowNull, true);
-  assert.deepEqual(Object.keys(models.PropertyView.getAttributes()), ["id", "propertyId", "createdAt"]);
+  assert.deepEqual(Object.keys(models.PropertyView.getAttributes()), ["id", "propertyId", "userId", "createdAt"]);
+  assert.equal(models.PropertyView.getAttributes().userId.allowNull, true);
   assert.equal(models.Property.getAttributes().acceptsPets.allowNull, true);
   assert.equal(models.Property.getAttributes().rooms.allowNull, false);
   assert.equal(models.PublisherApplication.getAttributes().rejectionReason.allowNull, true);

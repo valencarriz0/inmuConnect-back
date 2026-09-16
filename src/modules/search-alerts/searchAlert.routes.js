@@ -1,0 +1,15 @@
+import { Router } from "express";
+import authenticate from "../../middlewares/authenticate.js";
+import { authorizeRoles } from "../../middlewares/authorize.js";
+import validate from "../../middlewares/validate.js";
+import asyncHandler from "../../utils/asyncHandler.js";
+import * as controller from "./searchAlert.controller.js";
+import { createSearchAlertSchema, searchAlertParamsSchema, updateSearchAlertSchema } from "./searchAlert.validation.js";
+const router = Router();
+router.use(authenticate, authorizeRoles("interested", "publisher"));
+router.get("/", asyncHandler(controller.list));
+router.post("/", validate(createSearchAlertSchema), asyncHandler(controller.create));
+router.patch("/:id", validate(searchAlertParamsSchema, "params"), validate(updateSearchAlertSchema), asyncHandler(controller.update));
+router.patch("/:id/activate", validate(searchAlertParamsSchema, "params"), asyncHandler(controller.activate));
+router.patch("/:id/deactivate", validate(searchAlertParamsSchema, "params"), asyncHandler(controller.deactivate));
+export default router;

@@ -27,4 +27,11 @@ export const mailer = {
       text: `Solicitaste restablecer tu contraseña: ${url}\n\nEste enlace vence en ${env.PASSWORD_RESET_TTL_MINUTES} minutos.`,
     });
   },
+  async sendSearchAlertEmail({ to, alertName, property }) {
+    const url = `${env.APP_URL}/detail/${property.id}`;
+    await transporter.sendMail({
+      from: env.MAIL_FROM, to, subject: "Nueva propiedad que coincide con tu alerta",
+      text: `${alertName ? `Tu alerta "${alertName}"` : "Una de tus alertas"} coincide con ${property.title}.\n${property.operationType} · ${property.propertyType}\n${property.city?.name ?? ""}\n${property.currency} ${property.price}\n\nVer propiedad: ${url}`,
+    });
+  },
 };

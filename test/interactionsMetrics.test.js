@@ -32,7 +32,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../src/modules/notifications/notification.service.js";
-import { registerPropertyView } from "../src/modules/views/propertyView.service.js";
+import { listMyPropertyViews, registerPropertyView } from "../src/modules/views/propertyView.service.js";
 import { signAccessToken } from "../src/utils/jwt.js";
 
 const propertyId = "15b5bc88-1a5c-4f61-86eb-f8c56fb70e30";
@@ -301,6 +301,28 @@ test("view pública registra sólo propiedades active que no sean land", async (
   assert.equal(find.mock.calls[0].arguments[0].where.propertyType[Op.ne], "land");
 });
 
+test("view autenticada conserva el usuario y la anónima conserva null", async (t) => {
+  t.mock.method(Property, "findOne", async () => property());
+  const create = t.mock.method(PropertyView, "create", async (values) => values);
+  await registerPropertyView(propertyId);
+  await registerPropertyView(propertyId, interestedId);
+  assert.deepEqual(create.mock.calls[0].arguments[0], { propertyId, userId: null });
+  assert.deepEqual(create.mock.calls[1].arguments[0], { propertyId, userId: interestedId });
+});
+
+test("historial de vistas agrupa por propiedad, usa la fecha más reciente y pagina", async (t) => {
+  const query = t.mock.method(sequelize, "query", async (sql) => sql.includes("COUNT(DISTINCT")
+    ? [{ total: 1 }]
+    : [{ propertyId, lastViewedAt: "2026-01-02T10:00:00.000Z" }]);
+  t.mock.method(Property, "findOne", async () => property({ services: [], amenities: [] }));
+  const result = await listMyPropertyViews(interestedId, { page: 1, limit: 12 });
+  assert.equal(result.history.length, 1);
+  assert.equal(result.history[0].property.id, propertyId);
+  assert.equal(result.history[0].lastViewedAt, "2026-01-02T10:00:00.000Z");
+  assert.deepEqual(result.pagination, { page: 1, limit: 12, total: 1, totalPages: 1 });
+  assert.equal(query.mock.callCount(), 2);
+});
+
 test("view no registra paused, deleted, land o inexistente", async (t) => {
   t.mock.method(Property, "findOne", async () => null);
   const create = t.mock.method(PropertyView, "create", () => assert.fail("No debe crear"));
@@ -390,6 +412,23 @@ test("HTTP permite consulta y view anónimas, pero JWT opcional inválido respon
       body: JSON.stringify(consultationInput),
     });
     assert.equal(invalid.status, 401);
+  });
+});
+
+test("HTTP devuelve el historial de vistas sin fallar en el controller", async (t) => {
+  t.mock.method(User, "findByPk", async (id) => ({ id, role: "interested", accountStatus: "active", authVersion: 0 }));
+  t.mock.method(sequelize, "query", async (sql) => sql.includes("COUNT(DISTINCT")
+    ? [{ total: 1 }]
+    : [{ propertyId, lastViewedAt: "2026-01-02T10:00:00.000Z" }]);
+  t.mock.method(Property, "findOne", async () => property({ services: [], amenities: [] }));
+  await withServer(async (baseUrl) => {
+    const result = await request(baseUrl, "/api/users/me/views?page=1&limit=12", {
+      token: signAccessToken(interestedId),
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.history[0].property.id, propertyId);
+    assert.equal(result.body.history[0].lastViewedAt, "2026-01-02T10:00:00.000Z");
+    assert.deepEqual(result.body.pagination, { page: 1, limit: 12, total: 1, totalPages: 1 });
   });
 });
 

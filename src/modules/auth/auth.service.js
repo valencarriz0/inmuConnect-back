@@ -73,7 +73,7 @@ export async function verifyEmail(data) {
     await user.update({ emailVerifiedAt: now }, { transaction, fields: ["emailVerifiedAt"] });
     await authToken.update({ usedAt: now }, { transaction, fields: ["usedAt"] });
     await invalidateTokens(user.id, verificationPurpose, transaction);
-    return { user: serializeUser(user), token: signAccessToken(user) };
+    return { message: "Correo verificado correctamente. Ya podés iniciar sesión." };
   });
 }
 
@@ -120,6 +120,6 @@ export async function changePassword(currentUser, data) {
     const lockedUser = await User.unscoped().findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
     await lockedUser.update({ passwordHash: await hashPassword(input.newPassword), authVersion: lockedUser.authVersion + 1 }, { transaction, fields: ["passwordHash", "authVersion"] });
     await invalidateTokens(lockedUser.id, resetPurpose, transaction);
-    return { user: serializeUser(lockedUser), token: signAccessToken(lockedUser) };
+    return { message: "Contraseña actualizada correctamente. Iniciá sesión nuevamente." };
   });
 }

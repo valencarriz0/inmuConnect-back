@@ -23,6 +23,7 @@ router.post(
 );
 router.post(
   "/:id/views",
+  optionalAuthenticate,
   validate(propertyParamsSchema, "params"),
   asyncHandler(propertyViewController.create),
 );

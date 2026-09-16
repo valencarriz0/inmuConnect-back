@@ -21,6 +21,7 @@ import {
   assertOwnedPropertyImageUrls,
   storagePathFromOwnedPublicUrl,
 } from "../../utils/propertyImageOwnership.js";
+import { notifySearchAlertMatches } from "../search-alerts/searchAlert.service.js";
 
 const propertyAttributes = [
   "id", "publisherId", "title", "description", "operationType", "propertyType", "price",
@@ -241,7 +242,7 @@ export async function getPublisherProperty(id, publisherId) {
 
 export async function createPublisherProperty(publisherId, data) {
   assertOwnedPropertyImageUrls(data.images, publisherId);
-  return sequelize.transaction(async (transaction) => {
+  const created = await sequelize.transaction(async (transaction) => {
     const profile = await PublisherProfile.findByPk(publisherId, { transaction });
     if (!profile) throw new AppError(409, "La cuenta no tiene un perfil de publicador habilitado.");
 
@@ -254,6 +255,12 @@ export async function createPublisherProperty(publisherId, data) {
     await recordHistory(property.id, publisherId, "created", null, historySnapshot(serialized), transaction);
     return serialized;
   });
+  try {
+    await notifySearchAlertMatches(created);
+  } catch {
+    console.error("No se pudieron procesar alertas de búsqueda para una propiedad nueva.");
+  }
+  return created;
 }
 
 export async function updatePublisherProperty(id, publisherId, data, {

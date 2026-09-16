@@ -16,6 +16,11 @@ const PropertyView = sequelize.define(
       field: "property_id",
       allowNull: false,
     },
+    userId: {
+      type: DataTypes.UUID,
+      field: "user_id",
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       field: "created_at",

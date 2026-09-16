@@ -259,6 +259,20 @@ Property.hasMany(PropertyView, {
   onDelete: "RESTRICT",
   onUpdate: "NO ACTION",
 });
+PropertyView.belongsTo(User, {
+  as: "user",
+  foreignKey: "userId",
+  targetKey: "id",
+  onDelete: "SET NULL",
+  onUpdate: "NO ACTION",
+});
+User.hasMany(PropertyView, {
+  as: "propertyViews",
+  foreignKey: "userId",
+  sourceKey: "id",
+  onDelete: "SET NULL",
+  onUpdate: "NO ACTION",
+});
 
 SearchAlert.belongsTo(User, {
   as: "user",

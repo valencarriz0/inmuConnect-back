@@ -28,3 +28,8 @@ export const updateMeSchema = Joi.object({
   lastName: name,
   phone: phoneSchema,
 }).min(1).unknown(false).required();
+
+export const propertyViewHistoryQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(50).default(12),
+}).unknown(false);

@@ -47,6 +47,7 @@ const fieldMessages = {
   images: "Ingresá entre 2 y 5 URLs HTTP válidas.",
   message: "Ingresá un mensaje válido.",
   propertyId: "Ingresá una propiedad válida.",
+  period: "Seleccioná un período de 7, 30 o 90 días.",
 };
 
 export function validateData(schema, data) {

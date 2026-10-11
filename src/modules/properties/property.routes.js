@@ -27,6 +27,11 @@ router.post(
   validate(propertyParamsSchema, "params"),
   asyncHandler(propertyViewController.create),
 );
-router.get("/:id", validate(propertyParamsSchema, "params"), asyncHandler(controller.detail));
+router.get(
+  "/:id",
+  optionalAuthenticate,
+  validate(propertyParamsSchema, "params"),
+  asyncHandler(controller.detail),
+);
 
 export default router;

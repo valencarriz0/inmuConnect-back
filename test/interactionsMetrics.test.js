@@ -182,6 +182,23 @@ test("consulta autenticada asocia exclusivamente el userId recibido del middlewa
   assert.equal(values.userId, interestedId);
 });
 
+test("consulta autenticada rechaza al publicador de la propiedad antes de crearla", async (t) => {
+  const { state } = managedTransaction(t);
+  t.mock.method(Property, "findOne", async () => property());
+  const create = t.mock.method(Consultation, "create", () => assert.fail("No debe crear la consulta"));
+  const notify = t.mock.method(Notification, "create", () => assert.fail("No debe crear la notificación"));
+
+  await assert.rejects(createConsultation(propertyId, publisherId, consultationInput), {
+    statusCode: 403,
+    message: "No podés realizar consultas sobre tu propia propiedad.",
+  });
+
+  assert.equal(create.mock.callCount(), 0);
+  assert.equal(notify.mock.callCount(), 0);
+  assert.equal(state.committed, false);
+  assert.equal(state.rolledBack, true);
+});
+
 test("fallo al crear Notification revierte la transacción de la consulta", async (t) => {
   const { state } = managedTransaction(t);
   t.mock.method(Property, "findOne", async () => property());
@@ -337,25 +354,109 @@ test("métricas agregan sólo propiedades propias activas/pausadas y determinan 
   ]);
   const result = await getPublisherMetrics(publisherId);
   const [sql, options] = query.mock.calls[0].arguments;
-  assert.match(sql, /COUNT\(DISTINCT pv\.id\)/);
-  assert.match(sql, /COUNT\(DISTINCT c\.id\)/);
+  assert.match(sql, /view_metrics AS/);
+  assert.match(sql, /consultation_metrics AS/);
+  assert.match(sql, /favorite_metrics AS/);
   assert.match(sql, /publication_status IN \('active', 'paused'\)/);
-  assert.deepEqual(options.replacements, { publisherId });
+  assert.equal(options.replacements.publisherId, publisherId);
+  assert.equal(options.replacements.currentStart, "0001-01-01T00:00:00.000Z");
   assert.equal(options.type, QueryTypes.SELECT);
   assert.deepEqual(result.summary, {
-    activeProperties: 1, pausedProperties: 1, totalViews: 10, totalConsultations: 7,
+    activeProperties: 1,
+    pausedProperties: 1,
+    totalViews: 10,
+    totalConsultations: 7,
+    totalFavorites: 0,
+    previousPeriod: { views: 0, consultations: 0, favorites: 0 },
   });
   assert.deepEqual(result.mostViewed, { propertyId, title: "Casa", views: 8 });
+  assert.equal(result.period, null);
+  assert.deepEqual(result.activity, []);
 });
 
 test("métricas sin propiedades devuelve ceros y mostViewed null", async (t) => {
   t.mock.method(sequelize, "query", async () => []);
   const result = await getPublisherMetrics(publisherId);
   assert.deepEqual(result.summary, {
-    activeProperties: 0, pausedProperties: 0, totalViews: 0, totalConsultations: 0,
+    activeProperties: 0,
+    pausedProperties: 0,
+    totalViews: 0,
+    totalConsultations: 0,
+    totalFavorites: 0,
+    previousPeriod: { views: 0, consultations: 0, favorites: 0 },
   });
   assert.equal(result.mostViewed, null);
   assert.deepEqual(result.properties, []);
+});
+
+test("métricas filtradas comparan períodos iguales e incluyen favoritos y evolución diaria", async (t) => {
+  const query = t.mock.method(sequelize, "query", async (sql) => sql.includes("generate_series")
+    ? [
+      { date: "2026-10-04", views: 2, consultations: 1 },
+      { date: "2026-10-05", views: 0, consultations: 0 },
+    ]
+    : [{
+      propertyId,
+      title: "Casa",
+      publicationStatus: "active",
+      cityName: "Trenque Lauquen",
+      provinceName: "Buenos Aires",
+      image: "https://example.test/casa.jpg",
+      views: 8,
+      previousViews: 5,
+      consultations: 3,
+      previousConsultations: 1,
+      favorites: 4,
+      previousFavorites: 2,
+    }]);
+
+  const result = await getPublisherMetrics(publisherId, 7, new Date("2026-10-10T18:00:00.000Z"));
+  assert.equal(query.mock.callCount(), 2);
+  const [propertySql, propertyOptions] = query.mock.calls[0].arguments;
+  assert.match(propertySql, /COUNT\(\*\) FILTER/);
+  assert.match(propertySql, /LEFT JOIN view_metrics/);
+  assert.match(propertySql, /LEFT JOIN consultation_metrics/);
+  assert.match(propertySql, /LEFT JOIN favorite_metrics/);
+  assert.match(propertySql, /WHERE p\.publisher_id = :publisherId/);
+  assert.match(propertySql, /f\.created_at >= :currentStart AND f\.created_at < :currentEnd/);
+  assert.deepEqual(propertyOptions.replacements, {
+    publisherId,
+    currentStart: "2026-10-04T03:00:00.000Z",
+    currentEnd: "2026-10-11T03:00:00.000Z",
+    previousStart: "2026-09-27T03:00:00.000Z",
+    previousEnd: "2026-10-04T03:00:00.000Z",
+  });
+  const [activitySql, activityOptions] = query.mock.calls[1].arguments;
+  assert.match(activitySql, /generate_series/);
+  assert.equal(activityOptions.replacements.publisherId, publisherId);
+  assert.equal(activityOptions.replacements.currentStartDate, "2026-10-04");
+  assert.equal(activityOptions.replacements.currentEndDate, "2026-10-11");
+  assert.deepEqual(result.summary, {
+    activeProperties: 1,
+    pausedProperties: 0,
+    totalViews: 8,
+    totalConsultations: 3,
+    totalFavorites: 4,
+    previousPeriod: { views: 5, consultations: 1, favorites: 2 },
+  });
+  assert.deepEqual(result.properties[0], {
+    propertyId,
+    title: "Casa",
+    publicationStatus: "active",
+    city: "Trenque Lauquen",
+    province: "Buenos Aires",
+    image: "https://example.test/casa.jpg",
+    views: 8,
+    previousViews: 5,
+    consultations: 3,
+    previousConsultations: 1,
+    favorites: 4,
+    previousFavorites: 2,
+  });
+  assert.deepEqual(result.activity, [
+    { date: "2026-10-04", views: 2, consultations: 1 },
+    { date: "2026-10-05", views: 0, consultations: 0 },
+  ]);
 });
 
 test("notificaciones lista sólo propias, ordena y calcula unreadCount", async (t) => {
@@ -441,7 +542,7 @@ test("HTTP asocia consulta autenticada y restringe historial, favoritos y métri
   t.mock.method(sequelize, "transaction", async (callback) => callback({}));
   t.mock.method(Property, "findOne", async () => property());
   let consultationValues;
-  t.mock.method(Consultation, "create", async (values) => {
+  const createConsultationRecord = t.mock.method(Consultation, "create", async (values) => {
     consultationValues = values;
     return consultation(values);
   });
@@ -454,6 +555,17 @@ test("HTTP asocia consulta autenticada y restringe historial, favoritos y métri
       method: "POST", token: signAccessToken(interestedId), body: consultationInput,
     })).status, 201);
     assert.equal(consultationValues.userId, interestedId);
+    const ownDetail = await request(baseUrl, `/api/properties/${propertyId}`, {
+      token: signAccessToken(publisherId),
+    });
+    assert.equal(ownDetail.status, 200);
+    assert.equal(ownDetail.body.property.canConsult, false);
+    const ownConsultation = await request(baseUrl, `/api/properties/${propertyId}/consultations`, {
+      method: "POST", token: signAccessToken(publisherId), body: consultationInput,
+    });
+    assert.equal(ownConsultation.status, 403);
+    assert.equal(ownConsultation.body.error, "No podés realizar consultas sobre tu propia propiedad.");
+    assert.equal(createConsultationRecord.mock.callCount(), 1);
     assert.equal((await request(baseUrl, "/api/users/me/consultations", {
       token: signAccessToken(interestedId),
     })).status, 200);
@@ -466,6 +578,11 @@ test("HTTP asocia consulta autenticada y restringe historial, favoritos y métri
     assert.equal((await request(baseUrl, "/api/publisher/metrics", {
       token: signAccessToken(publisherId),
     })).status, 200);
+    const invalidPeriod = await request(baseUrl, "/api/publisher/metrics?period=14", {
+      token: signAccessToken(publisherId),
+    });
+    assert.equal(invalidPeriod.status, 400);
+    assert.match(invalidPeriod.body.details.period, /7, 30 o 90 días/);
     assert.equal((await request(baseUrl, "/api/publisher/consultations", {
       token: signAccessToken(interestedId),
     })).status, 403);

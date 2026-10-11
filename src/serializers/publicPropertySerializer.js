@@ -58,15 +58,32 @@ function serializeCommon(property) {
   };
 }
 
+function serializePublisher(publisher) {
+  const profile = plain(publisher);
+  const user = plain(profile?.user);
+  if (!profile || !user) return undefined;
+  return {
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+    email: user.email ?? null,
+    phone: user.phone ?? null,
+    publisherType: profile.publisherType ?? null,
+    agencyName: profile.agencyName ?? null,
+  };
+}
+
 export function serializePropertySummary(property) {
   return serializeCommon(property);
 }
 
-export function serializePropertyDetail(property) {
+export function serializePropertyDetail(property, { viewerId = null } = {}) {
   const value = plain(property);
+  const publisher = serializePublisher(value.publisher);
   return {
     ...serializeCommon(value),
     services: sortedCatalog(value.services),
     amenities: sortedCatalog(value.amenities),
+    canConsult: !viewerId || value.publisherId !== viewerId,
+    ...(publisher ? { publisher } : {}),
   };
 }

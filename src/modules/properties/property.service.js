@@ -67,9 +67,9 @@ export async function listPublicProperties(filters) {
   };
 }
 
-export async function getPublicProperty(id) {
+export async function getPublicProperty(id, viewerId = null) {
   const property = await Property.findOne({
-    attributes: propertyAttributes,
+    attributes: [...propertyAttributes, "publisherId"],
     where: {
       id,
       publicationStatus: "active",
@@ -80,8 +80,14 @@ export async function getPublicProperty(id) {
       imageInclude,
       { association: "services", attributes: ["id", "code", "name"], through: { attributes: [] }, required: false },
       { association: "amenities", attributes: ["id", "code", "name"], through: { attributes: [] }, required: false },
+      {
+        association: "publisher",
+        attributes: ["publisherType", "agencyName"],
+        required: true,
+        include: [{ association: "user", attributes: ["firstName", "lastName", "email", "phone"], required: true }],
+      },
     ],
   });
   if (!property) throw new AppError(404, "Propiedad no encontrada.");
-  return serializePropertyDetail(property);
+  return serializePropertyDetail(property, { viewerId });
 }

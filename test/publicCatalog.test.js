@@ -60,6 +60,18 @@ function property(overrides = {}) {
     ],
     services: [{ id: "s2", code: "gas", name: "Gas" }, { id: "s1", code: "water", name: "Agua" }],
     amenities: [{ id: "a1", code: "pool", name: "Pileta" }],
+    publisher: {
+      publisherType: "agency",
+      agencyName: "Inmobiliaria Central",
+      taxId: "PRIVATE_PUBLISHER_TAX_ID",
+      user: {
+        firstName: "Ana",
+        lastName: "Pública",
+        email: "ana@inmobiliaria.test",
+        phone: "+54 221 555 0100",
+        passwordHash: "PRIVATE_PUBLISHER_PASSWORD",
+      },
+    },
     ...overrides,
   };
 }
@@ -297,11 +309,36 @@ test("35. consultar detalle no escribe property_views", async (t) => {
   assert.equal(createView.mock.callCount(), 0);
 });
 
-test("36. detalle no expone publisher ni información privada", async (t) => {
+test("36. detalle expone datos de contacto del publicador sin información privada", async (t) => {
   const find = t.mock.method(Property, "findOne", async () => property());
   const result = await getPublicProperty(propertyId);
   assert.ok(!JSON.stringify(result).includes("PRIVATE_"));
-  assert.ok(!find.mock.calls[0].arguments[0].include.some((item) => item.association === "publisher"));
+  assert.deepEqual(result.publisher, {
+    firstName: "Ana",
+    lastName: "Pública",
+    email: "ana@inmobiliaria.test",
+    phone: "+54 221 555 0100",
+    publisherType: "agency",
+    agencyName: "Inmobiliaria Central",
+  });
+  assert.equal(Object.hasOwn(result.publisher, "taxId"), false);
+  const publisherInclude = find.mock.calls[0].arguments[0].include.find((item) => item.association === "publisher");
+  assert.deepEqual(publisherInclude.attributes, ["publisherType", "agencyName"]);
+  assert.equal(publisherInclude.required, true);
+  assert.deepEqual(publisherInclude.include[0].attributes, ["firstName", "lastName", "email", "phone"]);
+});
+
+test("detalle indica si el usuario autenticado puede consultar sin exponer publisherId", async (t) => {
+  t.mock.method(Property, "findOne", async () => property());
+
+  const ownProperty = await getPublicProperty(propertyId, "PRIVATE_PUBLISHER_ID");
+  const otherProperty = await getPublicProperty(propertyId, "another-user-id");
+  const anonymousProperty = await getPublicProperty(propertyId);
+
+  assert.equal(ownProperty.canConsult, false);
+  assert.equal(otherProperty.canConsult, true);
+  assert.equal(anonymousProperty.canConsult, true);
+  assert.equal(Object.hasOwn(ownProperty, "publisherId"), false);
 });
 
 test("37. provincias son públicas y usan serializer explícito", async (t) => {

@@ -5,5 +5,7 @@ export async function list(req, res) {
 }
 
 export async function detail(req, res) {
-  res.status(200).json({ property: await service.getPublicProperty(req.params.id) });
+  res.status(200).json({
+    property: await service.getPublicProperty(req.params.id, req.user?.id ?? null),
+  });
 }

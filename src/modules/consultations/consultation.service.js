@@ -27,6 +27,9 @@ export async function createConsultation(propertyId, userId, data) {
       transaction,
     });
     if (!property) throw new AppError(404, "Propiedad no encontrada.");
+    if (userId && property.publisherId === userId) {
+      throw new AppError(403, "No podés realizar consultas sobre tu propia propiedad.");
+    }
 
     const consultation = await Consultation.create({
       propertyId: property.id,
